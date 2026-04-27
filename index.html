@@ -1,0 +1,1846 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FRC Scouting Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            slateNight: "#0f172a",
+            cyanGlow: "#22d3ee",
+            goldGlow: "#fbbf24",
+          },
+          boxShadow: {
+            glow: "0 0 0 1px rgba(34, 211, 238, 0.18), 0 20px 60px rgba(15, 23, 42, 0.55)",
+          },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="min-h-screen bg-slateNight text-slate-100">
+  <div class="relative overflow-hidden">
+    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.16),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(251,191,36,0.12),transparent_28%)]"></div>
+    <div class="relative mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
+      <header class="rounded-3xl border border-slate-800/80 bg-slate-900/80 p-6 shadow-glow backdrop-blur">
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div class="space-y-2">
+            <p class="text-sm uppercase tracking-[0.35em] text-cyanGlow">FRC Strategy Suite</p>
+            <h1 id="page-title" class="text-3xl font-semibold text-white sm:text-4xl">FRC 五代戰力分析儀表板</h1>
+            <p id="page-subtitle" class="max-w-2xl text-sm text-slate-300 sm:text-base">不用記 Event Key，直接選賽事並設定主隊，快速查看 OPR 分級與對戰預測。</p>
+          </div>
+          <button
+            id="language-toggle"
+            type="button"
+            class="inline-flex items-center justify-center rounded-full border border-cyanGlow/40 bg-cyanGlow/10 px-4 py-2 text-sm font-medium text-cyanGlow transition hover:bg-cyanGlow/20"
+          >
+            English
+          </button>
+        </div>
+
+        <div class="mt-6 grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+          <label class="space-y-2">
+            <span id="year-label" class="text-sm font-medium text-slate-200">年份</span>
+            <select
+              id="year-input"
+              class="w-full rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyanGlow focus:ring-2 focus:ring-cyanGlow/30"
+            >
+            </select>
+          </label>
+
+          <label class="space-y-2 xl:col-span-2">
+            <span id="event-select-label" class="text-sm font-medium text-slate-200">選擇賽事</span>
+            <select
+              id="event-select"
+              class="w-full rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyanGlow focus:ring-2 focus:ring-cyanGlow/30"
+            >
+              <option value="">請先載入賽事</option>
+            </select>
+          </label>
+
+          <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+            <button
+              id="load-events-button"
+              type="button"
+              class="rounded-2xl border border-cyanGlow/40 bg-cyanGlow/10 px-5 py-3 text-sm font-semibold text-cyanGlow transition hover:bg-cyanGlow/20"
+            >
+              載入賽事
+            </button>
+            <button
+              id="fetch-button"
+              type="button"
+              class="rounded-2xl bg-gradient-to-r from-cyanGlow to-goldGlow px-5 py-3 text-sm font-semibold text-slate-950 transition hover:scale-[1.01] hover:shadow-lg"
+            >
+              抓取資料
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-4 grid gap-4 lg:grid-cols-[1fr_auto]">
+          <label class="space-y-2">
+            <span id="home-team-label" class="text-sm font-medium text-slate-200">主隊</span>
+            <input
+              id="home-team-input"
+              type="text"
+              autocomplete="off"
+              class="w-full rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-goldGlow focus:ring-2 focus:ring-goldGlow/30"
+              placeholder="例如：5516 或 frc5516"
+            >
+          </label>
+          <div class="flex items-end">
+            <div id="selected-event-pill" class="hidden rounded-2xl border border-goldGlow/30 bg-goldGlow/10 px-4 py-3 text-sm text-goldGlow"></div>
+          </div>
+        </div>
+
+        <div id="status-banner" class="mt-4 hidden rounded-2xl border px-4 py-3 text-sm"></div>
+      </header>
+
+      <main class="mt-6 flex-1">
+        <div class="rounded-3xl border border-slate-800/80 bg-slate-900/70 p-4 shadow-glow backdrop-blur sm:p-6">
+          <div class="flex flex-wrap gap-3 border-b border-slate-800 pb-4">
+            <button type="button" data-tab="rankings" class="tab-button rounded-full px-4 py-2 text-sm font-medium transition">排名表</button>
+            <button type="button" data-tab="yearly" class="tab-button rounded-full px-4 py-2 text-sm font-medium transition">年度總排名</button>
+            <button type="button" data-tab="predictor" class="tab-button rounded-full px-4 py-2 text-sm font-medium transition">對戰預測</button>
+          </div>
+
+          <section data-panel="rankings" class="tab-panel mt-6">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 id="rankings-heading" class="text-xl font-semibold text-white">隊伍分級排名</h2>
+                <p id="rankings-description" class="mt-1 text-sm text-slate-400">依據綜合評分將隊伍分級，分數結合 OPR、戰績與官方排名，並附上優勢與風險分析。</p>
+              </div>
+              <div id="event-summary" class="rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">尚未載入資料。</div>
+            </div>
+
+            <div class="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+              <label class="space-y-2">
+                <span id="team-search-label" class="text-sm font-medium text-slate-200">搜尋隊伍</span>
+                <input
+                  id="team-search-input"
+                  type="text"
+                  autocomplete="off"
+                  class="w-full rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyanGlow focus:ring-2 focus:ring-cyanGlow/30"
+                  placeholder="輸入隊號或 frc5516"
+                >
+              </label>
+              <div class="flex items-end">
+                <button
+                  id="toggle-analysis-button"
+                  type="button"
+                  class="w-full rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-cyanGlow/50 hover:text-white md:w-auto"
+                >
+                  收合分析
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-5 hidden overflow-hidden rounded-2xl border border-slate-800 md:block">
+              <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-800 text-left">
+                  <thead class="bg-slate-950/70 text-xs uppercase tracking-[0.2em] text-slate-400">
+                    <tr>
+                      <th id="col-rank" class="px-4 py-3">排名</th>
+                      <th id="col-team" class="px-4 py-3">隊伍</th>
+                      <th id="col-score" class="px-4 py-3">綜合評分</th>
+                      <th id="col-opr" class="px-4 py-3">OPR</th>
+                      <th id="col-tier" class="px-4 py-3">階級</th>
+                      <th id="col-record" class="px-4 py-3">戰績</th>
+                      <th id="col-analysis" class="px-4 py-3">分析</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rankings-body" class="divide-y divide-slate-800 bg-slate-900/50 text-sm text-slate-200">
+                    <tr>
+                      <td colspan="7" class="px-4 py-10 text-center text-slate-500">請先載入賽事清單，選好賽事後再抓取資料。</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div id="rankings-cards" class="mt-5 grid gap-4 md:hidden">
+              <div class="rounded-2xl border border-slate-800 bg-slate-950/40 px-4 py-10 text-center text-sm text-slate-500">
+                請先載入賽事清單，選好賽事後再抓取資料。
+              </div>
+            </div>
+          </section>
+
+          <section data-panel="yearly" class="tab-panel mt-6 hidden">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 id="yearly-heading" class="text-xl font-semibold text-white">年度總排名</h2>
+                <p id="yearly-description" class="mt-1 text-sm text-slate-400">彙整該年份所有賽事的隊伍表現，產生年度綜合排名。</p>
+              </div>
+              <div class="flex gap-3">
+                <div id="yearly-summary" class="rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">尚未載入年度排名。</div>
+                <button
+                  id="load-yearly-button"
+                  type="button"
+                  class="rounded-2xl border border-goldGlow/40 bg-goldGlow/10 px-4 py-3 text-sm font-semibold text-goldGlow transition hover:bg-goldGlow/20"
+                >
+                  載入年度排名
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-5 hidden overflow-hidden rounded-2xl border border-slate-800 md:block">
+              <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-800 text-left">
+                  <thead class="bg-slate-950/70 text-xs uppercase tracking-[0.2em] text-slate-400">
+                    <tr>
+                      <th id="year-col-rank" class="px-4 py-3">排名</th>
+                      <th id="year-col-team" class="px-4 py-3">隊伍</th>
+                      <th id="year-col-score" class="px-4 py-3">年度分數</th>
+                      <th id="year-col-events" class="px-4 py-3">賽事數</th>
+                      <th id="year-col-best" class="px-4 py-3">最佳表現</th>
+                      <th id="year-col-confidence" class="px-4 py-3">可信度</th>
+                    </tr>
+                  </thead>
+                  <tbody id="yearly-body" class="divide-y divide-slate-800 bg-slate-900/50 text-sm text-slate-200">
+                    <tr>
+                      <td colspan="6" class="px-4 py-10 text-center text-slate-500">請先選擇單一年份後載入年度排名。</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div id="yearly-cards" class="mt-5 grid gap-4 md:hidden">
+              <div class="rounded-2xl border border-slate-800 bg-slate-950/40 px-4 py-10 text-center text-sm text-slate-500">
+                請先選擇單一年份後載入年度排名。
+              </div>
+            </div>
+          </section>
+
+          <section data-panel="predictor" class="tab-panel mt-6 hidden">
+            <div class="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+              <div class="grid gap-6 md:grid-cols-2">
+                <div class="rounded-2xl border border-red-500/30 bg-red-500/10 p-5">
+                  <div class="mb-4 flex items-center justify-between">
+                    <h2 id="red-alliance-title" class="text-lg font-semibold text-red-200">紅方聯盟</h2>
+                    <span id="red-opr-total" class="text-sm text-red-100/80">Power: 0.00</span>
+                  </div>
+                  <div class="space-y-3">
+                    <input data-alliance="red" class="team-input w-full rounded-2xl border border-red-400/20 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-300/20" type="text" placeholder="frc1114">
+                    <input data-alliance="red" class="team-input w-full rounded-2xl border border-red-400/20 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-300/20" type="text" placeholder="2056">
+                    <input data-alliance="red" class="team-input w-full rounded-2xl border border-red-400/20 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-300/20" type="text" placeholder="254">
+                  </div>
+                </div>
+
+                <div class="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-5">
+                  <div class="mb-4 flex items-center justify-between">
+                    <h2 id="blue-alliance-title" class="text-lg font-semibold text-blue-200">藍方聯盟</h2>
+                    <span id="blue-opr-total" class="text-sm text-blue-100/80">Power: 0.00</span>
+                  </div>
+                  <div class="space-y-3">
+                    <input data-alliance="blue" class="team-input w-full rounded-2xl border border-blue-400/20 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-300/20" type="text" placeholder="frc1678">
+                    <input data-alliance="blue" class="team-input w-full rounded-2xl border border-blue-400/20 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-300/20" type="text" placeholder="1323">
+                    <input data-alliance="blue" class="team-input w-full rounded-2xl border border-blue-400/20 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-300/20" type="text" placeholder="4414">
+                  </div>
+                </div>
+              </div>
+
+              <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+                <div class="flex items-center justify-between">
+                  <h2 id="predictor-heading" class="text-xl font-semibold text-white">勝率預測</h2>
+                  <button
+                    id="predict-button"
+                    type="button"
+                    class="rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/15"
+                  >
+                    預測
+                  </button>
+                </div>
+                <p id="predictor-description" class="mt-2 text-sm text-slate-400">輸入六支隊伍編號後，以綜合評分總和估算雙方勝率，若無資料則回退到 OPR。</p>
+
+                <div class="mt-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-red-300"><span id="red-win-label">紅方</span>: <strong id="red-win-value">50.0%</strong></span>
+                    <span class="text-blue-300"><span id="blue-win-label">藍方</span>: <strong id="blue-win-value">50.0%</strong></span>
+                  </div>
+                  <div class="mt-4 h-5 overflow-hidden rounded-full bg-slate-800">
+                    <div class="flex h-full">
+                      <div id="red-bar" class="h-full bg-gradient-to-r from-red-500 to-red-300 transition-all duration-500" style="width: 50%"></div>
+                      <div id="blue-bar" class="h-full bg-gradient-to-r from-blue-300 to-blue-500 transition-all duration-500" style="width: 50%"></div>
+                    </div>
+                  </div>
+                  <div id="predictor-notes" class="mt-4 text-sm text-slate-400">尚未計算。請先載入賽事資料。</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <footer id="footer-text" class="mt-6 pb-2 text-center text-xs text-slate-500">Data provided by The Blue Alliance. Not an official FIRST tool.</footer>
+    </div>
+  </div>
+
+  <script>
+    const TBA_API_KEY = "eKsTsGItw57il03nSdnep7wqAx6iPV0KXuy8zaR201ZvWXYM7VMg1eD8Bj3kqGQq";
+
+    const translations = {
+      zh: {
+        languageToggle: "English",
+        pageTitle: "FRC 爺爺兒子選擇器",
+        pageSubtitle: ":)",
+        year: "年份",
+        allYears: "全部年份",
+        eventSelect: "選擇賽事",
+        loadEvents: "載入賽事",
+        fetchData: "抓取資料",
+        homeTeam: "主隊",
+        homeTeamPlaceholder: "例如：5516 或 frc5516",
+        selectedEvent: "目前賽事：{name}",
+        rankingsTab: "排名表",
+        yearlyTab: "年度總排名",
+        predictorTab: "對戰預測",
+        rankingsHeading: "隊伍分級排名",
+        rankingsDescription: "依據綜合評分將隊伍分級，分數結合 OPR、積分賽戰績、官方排名與聯盟賽表現，並附上優勢與風險分析。",
+        yearlyHeading: "年度總排名",
+        yearlyDescription: "彙整該年份所有賽事的隊伍表現，產生年度綜合排名。",
+        loadYearly: "載入年度排名",
+        yearlySummary: "已載入 {year} 年年度排名，共 {count} 支隊伍。",
+        yearlySummaryPartial: "已載入 {year} 年年度排名，共 {count} 支隊伍；部分賽事因資料不完整已略過。",
+        yearlyEmpty: "請先選擇單一年份後載入年度排名。",
+        yearlyNeedSingleYear: "年度總排名需要指定單一年份，不能使用全部年份。",
+        yearlyEvents: "賽事數",
+        yearlyBest: "最佳表現",
+        yearlyConfidence: "可信度",
+        yearlyScore: "年度分數",
+        teamSearch: "搜尋隊伍",
+        teamSearchPlaceholder: "輸入隊號或 frc5516",
+        noSearchResults: "找不到符合搜尋條件的隊伍。",
+        collapseAnalysis: "收合分析",
+        expandAnalysis: "展開分析",
+        predictorHeading: "勝率預測",
+        predictorDescription: "輸入六支隊伍編號後，以綜合評分總和估算雙方勝率，若無資料則回退到 OPR。",
+        redAlliance: "紅方聯盟",
+        blueAlliance: "藍方聯盟",
+        predict: "預測",
+        team: "隊伍",
+        rank: "排名",
+        score: "綜合評分",
+        tier: "階級",
+        opr: "OPR",
+        record: "戰績",
+        playoff: "聯盟賽",
+        analysis: "分析",
+        redSide: "紅方",
+        blueSide: "藍方",
+        grandpa: "爺爺",
+        dad: "爸爸",
+        peers: "平輩",
+        son: "兒子",
+        grandson: "孫子",
+        invalidApiKey: "程式內設定的 API Key 無效。",
+        missingYear: "請先輸入年份。",
+        missingEvent: "請先選擇賽事。",
+        eventListHint: "請先載入賽事",
+        loadingEvents: "賽事載入中...",
+        eventsLoaded: "已載入 {year} 賽事，共 {count} 場。",
+        eventsLoadedPartial: "已載入 {year} 賽事，共 {count} 場；部分年份或賽事已略過。",
+        noEventsFound: "找不到此年份的賽事。",
+        eventNotFound: "找不到賽事資料，請重新載入賽事清單。",
+        fetchFailed: "抓取資料失敗，請稍後再試。",
+        loading: "資料載入中...",
+        loadedSummary: "已載入 {eventName}，共 {count} 支隊伍。",
+        noDataLoaded: "尚未載入資料。",
+        emptyRankings: "請先載入賽事清單，選好賽事後再抓取資料。",
+        predictorReady: "已就緒。輸入隊伍編號即可計算勝率。",
+        predictorWaiting: "尚未計算。請先載入賽事資料。",
+        unknownRecord: "無戰績資料",
+        homeTeamBadge: "主隊",
+        roleLabel: "定位",
+        roleAttack: "攻擊型",
+        roleDefense: "防守型",
+        roleBalanced: "均衡型",
+        roleSupport: "輔助型",
+        strengthHighOpr: "高輸出火力",
+        strengthStrongRecord: "穩定轉化成勝場",
+        strengthHighSeed: "排名位置強勢",
+        strengthOverperforming: "比帳面火力更會贏球",
+        strengthDefenseImpact: "防守壓制力強",
+        strengthPositiveMargin: "對勝負差有正面影響",
+        strengthReliableFloor: "下限穩定不易崩盤",
+        strengthClutchSeeder: "種子積分轉化能力好",
+        strengthPlayoffProven: "淘汰賽抗壓表現好",
+        strengthPlayoffMargin: "聯盟賽能拉開比分",
+        weaknessLowOpr: "火力上限偏低",
+        weaknessWeakRecord: "戰績波動較大",
+        weaknessUnderperforming: "紙面火力未轉成名次",
+        weaknessLowSeed: "排名壓力較大",
+        weaknessDefenseLeak: "防守端可能失分偏多",
+        weaknessNegativeMargin: "對勝負差幫助有限",
+        weaknessLowFloor: "下限不穩定",
+        weaknessRankingFragile: "排名可能不夠抗壓",
+        weaknessNoPlayoffData: "缺少聯盟賽驗證",
+        weaknessPlayoffDrop: "淘汰賽表現下滑",
+        noStrengths: "基礎表現平均",
+        noWeaknesses: "暫無明顯短板",
+        strengthsLabel: "優勢",
+        weaknessesLabel: "風險",
+        confidenceLabel: "可信度",
+        confidenceHigh: "高",
+        confidenceMedium: "中",
+        confidenceLow: "低",
+        confidenceReasonSample: "樣本數足夠",
+        confidenceReasonStable: "數據彼此一致",
+        confidenceReasonUnstable: "數據仍有波動",
+        confidenceReasonSmallSample: "樣本偏少",
+        archetypeLabel: "類型",
+        compareLabel: "相對主隊",
+        archetypeOffense: "進攻核心",
+        archetypeEfficient: "效率贏球型",
+        archetypeBalanced: "均衡型",
+        archetypeVolatile: "高波動型",
+        archetypeDeveloping: "養成中",
+        flagSleeper: "黑馬候選",
+        flagOverseeded: "名次虛高警示",
+        flagUnderseeded: "被低估警示",
+        compareBetter: "高於主隊",
+        compareClose: "接近主隊",
+        compareLower: "低於主隊",
+        footer: "Data provided by The Blue Alliance. Not an official FIRST tool.",
+        statusSuccess: "資料更新完成。"
+      },
+      en: {
+        languageToggle: "繁體中文",
+        pageTitle: "FRC Five-Generation Scouting Dashboard",
+        pageSubtitle: "No need to memorize event keys. Pick an event, set your home team, and view OPR tiers plus win predictions instantly.",
+        year: "Year",
+        allYears: "All Years",
+        eventSelect: "Select Event",
+        loadEvents: "Load Events",
+        fetchData: "Fetch Data",
+        homeTeam: "Home Team",
+        homeTeamPlaceholder: "Example: 5516 or frc5516",
+        selectedEvent: "Current event: {name}",
+        rankingsTab: "Rankings Table",
+        yearlyTab: "Year Rankings",
+        predictorTab: "Match Predictor",
+        rankingsHeading: "Tiered Team Rankings",
+        rankingsDescription: "Teams are tiered by a composite score that blends OPR, qualification record, official rank, and playoff performance, with strengths and risks called out.",
+        yearlyHeading: "Year Rankings",
+        yearlyDescription: "Aggregate team performance across all events in the selected year into a season-wide ranking.",
+        loadYearly: "Load Year Rankings",
+        yearlySummary: "Loaded {count} teams for {year}.",
+        yearlySummaryPartial: "Loaded {count} teams for {year}; some events were skipped due to incomplete data.",
+        yearlyEmpty: "Choose a single year first, then load the year rankings.",
+        yearlyNeedSingleYear: "Year rankings require one specific year. 'All Years' is not supported here.",
+        yearlyEvents: "Events",
+        yearlyBest: "Best Result",
+        yearlyConfidence: "Confidence",
+        yearlyScore: "Year Score",
+        teamSearch: "Search Team",
+        teamSearchPlaceholder: "Enter team number or frc5516",
+        noSearchResults: "No teams matched your search.",
+        collapseAnalysis: "Collapse Analysis",
+        expandAnalysis: "Expand Analysis",
+        predictorHeading: "Win Predictor",
+        predictorDescription: "Enter six team numbers to estimate win odds from total composite power, with OPR used as fallback.",
+        redAlliance: "Red Alliance",
+        blueAlliance: "Blue Alliance",
+        predict: "Predict",
+        team: "Team",
+        rank: "Rank",
+        score: "Composite",
+        tier: "Tier",
+        opr: "OPR",
+        record: "Record",
+        playoff: "Playoffs",
+        analysis: "Analysis",
+        redSide: "Red",
+        blueSide: "Blue",
+        grandpa: "Grandpa",
+        dad: "Dad",
+        peers: "Peers",
+        son: "Son",
+        grandson: "Grandson",
+        invalidApiKey: "The API key configured in code is invalid.",
+        missingYear: "Please enter a year first.",
+        missingEvent: "Please select an event first.",
+        eventListHint: "Load events first",
+        loadingEvents: "Loading event list...",
+        eventsLoaded: "Loaded {count} events for {year}.",
+        eventsLoadedPartial: "Loaded {count} events for {year}; some years or events were skipped.",
+        noEventsFound: "No events were found for that year.",
+        eventNotFound: "Event data was not found. Please reload the event list.",
+        fetchFailed: "Unable to fetch data right now. Please try again later.",
+        loading: "Loading data...",
+        loadedSummary: "Loaded {eventName} with {count} teams.",
+        noDataLoaded: "No data loaded.",
+        emptyRankings: "Load the event list first, choose an event, then fetch data.",
+        predictorReady: "Ready. Enter team numbers to calculate win probability.",
+        predictorWaiting: "No prediction yet. Load event data first.",
+        unknownRecord: "No record data",
+        homeTeamBadge: "Home Team",
+        roleLabel: "Role",
+        roleAttack: "Offense",
+        roleDefense: "Defense",
+        roleBalanced: "Balanced",
+        roleSupport: "Support",
+        strengthHighOpr: "High scoring ceiling",
+        strengthStrongRecord: "Consistently converts to wins",
+        strengthHighSeed: "Strong ranking position",
+        strengthOverperforming: "Wins more than raw OPR suggests",
+        strengthDefenseImpact: "Strong defensive suppression",
+        strengthPositiveMargin: "Positive impact on scoring margin",
+        strengthReliableFloor: "Reliable floor performance",
+        strengthClutchSeeder: "Converts ranking chances well",
+        strengthPlayoffProven: "Proven under playoff pressure",
+        strengthPlayoffMargin: "Creates margin in playoffs",
+        weaknessLowOpr: "Limited scoring ceiling",
+        weaknessWeakRecord: "Results are still inconsistent",
+        weaknessUnderperforming: "Raw power is not becoming rank",
+        weaknessLowSeed: "Ranking pressure is still high",
+        weaknessDefenseLeak: "Defense may be leaking points",
+        weaknessNegativeMargin: "Limited impact on scoring margin",
+        weaknessLowFloor: "Low floor / unstable output",
+        weaknessRankingFragile: "Ranking may be fragile",
+        weaknessNoPlayoffData: "No playoff validation yet",
+        weaknessPlayoffDrop: "Drops off in playoffs",
+        noStrengths: "Balanced baseline profile",
+        noWeaknesses: "No obvious weakness yet",
+        strengthsLabel: "Strengths",
+        weaknessesLabel: "Risks",
+        confidenceLabel: "Confidence",
+        confidenceHigh: "High",
+        confidenceMedium: "Medium",
+        confidenceLow: "Low",
+        confidenceReasonSample: "Good sample size",
+        confidenceReasonStable: "Signals agree well",
+        confidenceReasonUnstable: "Signals are still noisy",
+        confidenceReasonSmallSample: "Small sample size",
+        archetypeLabel: "Profile",
+        compareLabel: "Vs Home Team",
+        archetypeOffense: "Offense anchor",
+        archetypeEfficient: "Efficient winner",
+        archetypeBalanced: "Balanced build",
+        archetypeVolatile: "High variance",
+        archetypeDeveloping: "Still developing",
+        flagSleeper: "Sleeper candidate",
+        flagOverseeded: "Overseeded warning",
+        flagUnderseeded: "Underseeded warning",
+        compareBetter: "Above home team",
+        compareClose: "Close to home team",
+        compareLower: "Below home team",
+        footer: "Data provided by The Blue Alliance. Not an official FIRST tool.",
+        statusSuccess: "Data refreshed successfully."
+      }
+    };
+
+    const tierDefinitions = [
+      { key: "grandpa", minPercentile: 95, colorClass: "bg-amber-400/20 text-amber-300 border border-amber-300/30" },
+      { key: "dad", minPercentile: 80, colorClass: "bg-violet-400/20 text-violet-300 border border-violet-300/30" },
+      { key: "peers", minPercentile: 40, colorClass: "bg-emerald-400/20 text-emerald-300 border border-emerald-300/30" },
+      { key: "son", minPercentile: 15, colorClass: "bg-blue-400/20 text-blue-300 border border-blue-300/30" },
+      { key: "grandson", minPercentile: 0, colorClass: "bg-slate-400/20 text-slate-300 border border-slate-300/30" }
+    ];
+
+    const STORAGE_KEYS = {
+      language: "frc-dashboard-language",
+      homeTeam: "frc-dashboard-home-team"
+    };
+
+    const state = {
+      language: localStorage.getItem(STORAGE_KEYS.language) || "zh",
+      homeTeam: localStorage.getItem(STORAGE_KEYS.homeTeam) || "",
+      events: [],
+      selectedEventKey: "",
+      selectedEventName: "",
+      oprMap: {},
+      powerMap: {},
+      rankings: [],
+      yearlyRankings: [],
+      teamSearch: "",
+      analysisCollapsed: false,
+      activeTab: "rankings"
+    };
+
+    const elements = {
+      html: document.documentElement,
+      languageToggle: document.getElementById("language-toggle"),
+      yearInput: document.getElementById("year-input"),
+      eventSelect: document.getElementById("event-select"),
+      loadEventsButton: document.getElementById("load-events-button"),
+      fetchButton: document.getElementById("fetch-button"),
+      homeTeamInput: document.getElementById("home-team-input"),
+      selectedEventPill: document.getElementById("selected-event-pill"),
+      statusBanner: document.getElementById("status-banner"),
+      tabButtons: Array.from(document.querySelectorAll(".tab-button")),
+      tabPanels: Array.from(document.querySelectorAll(".tab-panel")),
+      rankingsBody: document.getElementById("rankings-body"),
+      rankingsCards: document.getElementById("rankings-cards"),
+      eventSummary: document.getElementById("event-summary"),
+      teamSearchInput: document.getElementById("team-search-input"),
+      teamSearchLabel: document.getElementById("team-search-label"),
+      toggleAnalysisButton: document.getElementById("toggle-analysis-button"),
+      yearlyHeading: document.getElementById("yearly-heading"),
+      yearlyDescription: document.getElementById("yearly-description"),
+      yearlySummary: document.getElementById("yearly-summary"),
+      loadYearlyButton: document.getElementById("load-yearly-button"),
+      yearlyBody: document.getElementById("yearly-body"),
+      yearlyCards: document.getElementById("yearly-cards"),
+      yearColRank: document.getElementById("year-col-rank"),
+      yearColTeam: document.getElementById("year-col-team"),
+      yearColScore: document.getElementById("year-col-score"),
+      yearColEvents: document.getElementById("year-col-events"),
+      yearColBest: document.getElementById("year-col-best"),
+      yearColConfidence: document.getElementById("year-col-confidence"),
+      predictButton: document.getElementById("predict-button"),
+      teamInputs: Array.from(document.querySelectorAll(".team-input")),
+      redOprTotal: document.getElementById("red-opr-total"),
+      blueOprTotal: document.getElementById("blue-opr-total"),
+      redWinValue: document.getElementById("red-win-value"),
+      blueWinValue: document.getElementById("blue-win-value"),
+      redBar: document.getElementById("red-bar"),
+      blueBar: document.getElementById("blue-bar"),
+      predictorNotes: document.getElementById("predictor-notes"),
+      pageTitle: document.getElementById("page-title"),
+      pageSubtitle: document.getElementById("page-subtitle"),
+      yearLabel: document.getElementById("year-label"),
+      eventSelectLabel: document.getElementById("event-select-label"),
+      homeTeamLabel: document.getElementById("home-team-label"),
+      rankingsHeading: document.getElementById("rankings-heading"),
+      rankingsDescription: document.getElementById("rankings-description"),
+      predictorHeading: document.getElementById("predictor-heading"),
+      predictorDescription: document.getElementById("predictor-description"),
+      redAllianceTitle: document.getElementById("red-alliance-title"),
+      blueAllianceTitle: document.getElementById("blue-alliance-title"),
+      redWinLabel: document.getElementById("red-win-label"),
+      blueWinLabel: document.getElementById("blue-win-label"),
+      footerText: document.getElementById("footer-text"),
+      colRank: document.getElementById("col-rank"),
+      colTeam: document.getElementById("col-team"),
+      colScore: document.getElementById("col-score"),
+      colOpr: document.getElementById("col-opr"),
+      colTier: document.getElementById("col-tier"),
+      colRecord: document.getElementById("col-record"),
+      colAnalysis: document.getElementById("col-analysis")
+    };
+
+    function tr(key, variables = {}) {
+      const template = translations[state.language][key] || translations.en[key] || key;
+      return Object.entries(variables).reduce((message, [name, value]) => {
+        return message.replace(`{${name}}`, String(value));
+      }, template);
+    }
+
+    function normalizeTeamKey(team) {
+      const raw = String(team || "").trim().toLowerCase();
+      if (!raw) {
+        return "";
+      }
+      return raw.startsWith("frc") ? raw : `frc${raw}`;
+    }
+
+    async function requestTba(path) {
+      const response = await fetch(`https://www.thebluealliance.com/api/v3${path}`, {
+        headers: {
+          "X-TBA-Auth-Key": TBA_API_KEY
+        }
+      });
+
+      if (response.status === 401) {
+        throw new Error("INVALID_API_KEY");
+      }
+
+      if (response.status === 404) {
+        throw new Error("EVENT_NOT_FOUND");
+      }
+
+      if (!response.ok) {
+        throw new Error("FETCH_FAILED");
+      }
+
+      return response.json();
+    }
+
+    function getTierByPercentile(percentile) {
+      return tierDefinitions.find((tier) => percentile >= tier.minPercentile) || tierDefinitions[tierDefinitions.length - 1];
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function normalize(value, min, max) {
+      if (max <= min) {
+        return 100;
+      }
+      return ((value - min) / (max - min)) * 100;
+    }
+
+    function buildTeamInsights(metrics) {
+      const strengths = [];
+      const weaknesses = [];
+
+      if (metrics.oprScore >= 85) {
+        strengths.push(tr("strengthHighOpr"));
+      }
+      if (metrics.defenseScore >= 72) {
+        strengths.push(tr("strengthDefenseImpact"));
+      }
+      if (metrics.winRateScore >= 75) {
+        strengths.push(tr("strengthStrongRecord"));
+      }
+      if (metrics.rankScore >= 85) {
+        strengths.push(tr("strengthHighSeed"));
+      }
+      if (metrics.ccwmScore >= 72) {
+        strengths.push(tr("strengthPositiveMargin"));
+      }
+      if (metrics.playoffScore >= 70) {
+        strengths.push(tr("strengthPlayoffProven"));
+      }
+      if (metrics.playoffMarginScore >= 65) {
+        strengths.push(tr("strengthPlayoffMargin"));
+      }
+      if (metrics.executionGap >= 15) {
+        strengths.push(tr("strengthOverperforming"));
+      }
+      if (metrics.floorScore >= 70) {
+        strengths.push(tr("strengthReliableFloor"));
+      }
+      if (metrics.rankScore >= 70 && metrics.winRateScore >= 70) {
+        strengths.push(tr("strengthClutchSeeder"));
+      }
+
+      if (metrics.oprScore <= 35) {
+        weaknesses.push(tr("weaknessLowOpr"));
+      }
+      if (metrics.defenseScore <= 35) {
+        weaknesses.push(tr("weaknessDefenseLeak"));
+      }
+      if (metrics.winRateScore <= 45) {
+        weaknesses.push(tr("weaknessWeakRecord"));
+      }
+      if (metrics.ccwmScore <= 35) {
+        weaknesses.push(tr("weaknessNegativeMargin"));
+      }
+      if (metrics.playoffScore <= 20) {
+        weaknesses.push(tr("weaknessNoPlayoffData"));
+      }
+      if (metrics.playoffWinRate > 0 && metrics.playoffWinRate < 45) {
+        weaknesses.push(tr("weaknessPlayoffDrop"));
+      }
+      if (metrics.executionGap <= -15) {
+        weaknesses.push(tr("weaknessUnderperforming"));
+      }
+      if (metrics.rankScore <= 35) {
+        weaknesses.push(tr("weaknessLowSeed"));
+      }
+      if (metrics.floorScore <= 35) {
+        weaknesses.push(tr("weaknessLowFloor"));
+      }
+      if (metrics.rankScore >= 70 && metrics.winRateScore <= 55) {
+        weaknesses.push(tr("weaknessRankingFragile"));
+      }
+
+      return {
+        strengths: strengths.length ? strengths.slice(0, 4) : [tr("noStrengths")],
+        weaknesses: weaknesses.length ? weaknesses.slice(0, 4) : [tr("noWeaknesses")]
+      };
+    }
+
+    function getPlayStyle(metrics) {
+      if (metrics.oprScore >= 72 && metrics.ccwmScore >= 55) {
+        return tr("roleAttack");
+      }
+      if (metrics.defenseScore >= 68 && metrics.oprScore <= 58) {
+        return tr("roleDefense");
+      }
+      if (metrics.executionGap >= 10 && metrics.oprScore < 72) {
+        return tr("roleSupport");
+      }
+      return tr("roleBalanced");
+    }
+
+    function getArchetype(metrics) {
+      if (metrics.oprScore >= 82 && metrics.winRateScore >= 60) {
+        return tr("archetypeOffense");
+      }
+      if (metrics.executionGap >= 12 && metrics.winRateScore >= 70) {
+        return tr("archetypeEfficient");
+      }
+      if (metrics.oprScore >= 50 && metrics.winRateScore >= 50 && metrics.rankScore >= 50) {
+        return tr("archetypeBalanced");
+      }
+      if (Math.abs(metrics.executionGap) >= 18) {
+        return tr("archetypeVolatile");
+      }
+      return tr("archetypeDeveloping");
+    }
+
+    function getStrategicFlags(metrics) {
+      const flags = [];
+
+      if (metrics.oprScore >= 65 && metrics.rankScore <= 45) {
+        flags.push(tr("flagSleeper"));
+      }
+      if (metrics.executionGap >= 18 && metrics.oprScore <= 65) {
+        flags.push(tr("flagOverseeded"));
+      }
+      if (metrics.executionGap <= -18 && metrics.oprScore >= 60) {
+        flags.push(tr("flagUnderseeded"));
+      }
+
+      return flags.slice(0, 2);
+    }
+
+    function compareToHomeTeam(teamScore, homeScore) {
+      if (!homeScore) {
+        return "";
+      }
+
+      const diff = teamScore - homeScore;
+      if (diff >= 8) {
+        return tr("compareBetter");
+      }
+      if (diff <= -8) {
+        return tr("compareLower");
+      }
+      return tr("compareClose");
+    }
+
+    function buildPlayoffStats(matchEntries = []) {
+      const playoffMap = {};
+      const playoffLevels = new Set(["ef", "qf", "sf", "f"]);
+
+      matchEntries.forEach((match) => {
+        if (!playoffLevels.has(match.comp_level)) {
+          return;
+        }
+
+        const red = match.alliances?.red;
+        const blue = match.alliances?.blue;
+        if (!red || !blue) {
+          return;
+        }
+
+        const redScore = Number(red.score);
+        const blueScore = Number(blue.score);
+        const played = Number.isFinite(redScore) && Number.isFinite(blueScore) && redScore >= 0 && blueScore >= 0;
+
+        if (!played) {
+          return;
+        }
+
+        const applyAlliance = (alliance, ownScore, opponentScore, won) => {
+          (alliance.team_keys || []).forEach((teamKey) => {
+            if (!playoffMap[teamKey]) {
+              playoffMap[teamKey] = {
+                played: 0,
+                wins: 0,
+                losses: 0,
+                ties: 0,
+                pointsFor: 0,
+                pointsAgainst: 0
+              };
+            }
+
+            playoffMap[teamKey].played += 1;
+            playoffMap[teamKey].pointsFor += ownScore;
+            playoffMap[teamKey].pointsAgainst += opponentScore;
+
+            if (won === null) {
+              playoffMap[teamKey].ties += 1;
+            } else if (won) {
+              playoffMap[teamKey].wins += 1;
+            } else {
+              playoffMap[teamKey].losses += 1;
+            }
+          });
+        };
+
+        if (redScore === blueScore) {
+          applyAlliance(red, redScore, blueScore, null);
+          applyAlliance(blue, blueScore, redScore, null);
+          return;
+        }
+
+        applyAlliance(red, redScore, blueScore, redScore > blueScore);
+        applyAlliance(blue, blueScore, redScore, blueScore > redScore);
+      });
+
+      return playoffMap;
+    }
+
+    function getConfidenceLabel(score) {
+      if (score >= 75) {
+        return tr("confidenceHigh");
+      }
+      if (score >= 50) {
+        return tr("confidenceMedium");
+      }
+      return tr("confidenceLow");
+    }
+
+    function buildConfidenceData(team, metrics) {
+      const sampleScore = clamp((team.games / 12) * 100, 0, 100);
+      const alignmentGap = Math.abs(metrics.executionGap);
+      const alignmentScore = clamp(100 - (alignmentGap * 3), 0, 100);
+      const marginScore = metrics.ccwmScore;
+      const confidenceScore = clamp(
+        (sampleScore * 0.45) + (alignmentScore * 0.35) + (marginScore * 0.20),
+        0,
+        100
+      );
+
+      const reasons = [];
+      if (sampleScore >= 65) {
+        reasons.push(tr("confidenceReasonSample"));
+      } else {
+        reasons.push(tr("confidenceReasonSmallSample"));
+      }
+
+      if (alignmentScore >= 60) {
+        reasons.push(tr("confidenceReasonStable"));
+      } else {
+        reasons.push(tr("confidenceReasonUnstable"));
+      }
+
+      return {
+        score: confidenceScore,
+        label: getConfidenceLabel(confidenceScore),
+        reasons
+      };
+    }
+
+    function buildRankedTeams(oprMap, rankingEntries, oprBundle = {}, playoffMap = {}) {
+      const rankingMap = new Map((rankingEntries || []).map((entry) => [String(entry.team_key).replace("frc", ""), entry]));
+      const dprMap = oprBundle.dprs || {};
+      const ccwmMap = oprBundle.ccwms || {};
+      const teams = Object.entries(oprMap || {})
+        .map(([teamKey, opr]) => {
+          const teamNumber = String(teamKey).replace("frc", "");
+          const ranking = rankingMap.get(teamNumber) || null;
+          const wins = ranking?.record?.wins || 0;
+          const losses = ranking?.record?.losses || 0;
+          const ties = ranking?.record?.ties || 0;
+          const games = wins + losses + ties;
+          const winRate = games > 0 ? (wins + ties * 0.5) / games : 0.5;
+          const officialRank = Number(ranking?.rank) || null;
+
+          return {
+            teamKey,
+            teamNumber,
+            opr: Number(opr) || 0,
+            ranking,
+            wins,
+            losses,
+            ties,
+            games,
+            winRate,
+            officialRank,
+            dpr: Number(dprMap[teamKey]) || 0,
+            ccwm: Number(ccwmMap[teamKey]) || 0,
+            playoff: playoffMap[teamKey] || {
+              played: 0,
+              wins: 0,
+              losses: 0,
+              ties: 0,
+              pointsFor: 0,
+              pointsAgainst: 0
+            }
+          };
+        })
+        .sort((a, b) => {
+          if ((a.officialRank || Number.POSITIVE_INFINITY) !== (b.officialRank || Number.POSITIVE_INFINITY)) {
+            return (a.officialRank || Number.POSITIVE_INFINITY) - (b.officialRank || Number.POSITIVE_INFINITY);
+          }
+          return b.opr - a.opr;
+        });
+
+      const total = teams.length;
+      const oprValues = teams.map((team) => team.opr);
+      const dprValues = teams.map((team) => team.dpr);
+      const ccwmValues = teams.map((team) => team.ccwm);
+      const playoffMargins = teams.map((team) => {
+        if (!team.playoff.played) {
+          return 0;
+        }
+        return (team.playoff.pointsFor - team.playoff.pointsAgainst) / team.playoff.played;
+      });
+      const minOpr = oprValues.length ? Math.min(...oprValues) : 0;
+      const maxOpr = oprValues.length ? Math.max(...oprValues) : 0;
+      const minDpr = dprValues.length ? Math.min(...dprValues) : 0;
+      const maxDpr = dprValues.length ? Math.max(...dprValues) : 0;
+      const minCcwm = ccwmValues.length ? Math.min(...ccwmValues) : 0;
+      const maxCcwm = ccwmValues.length ? Math.max(...ccwmValues) : 0;
+      const minPlayoffMargin = playoffMargins.length ? Math.min(...playoffMargins) : 0;
+      const maxPlayoffMargin = playoffMargins.length ? Math.max(...playoffMargins) : 0;
+
+      return teams.map((team, index) => {
+        const percentile = total <= 1 ? 100 : ((total - index - 1) / (total - 1)) * 100;
+        const rankPosition = team.officialRank || (index + 1);
+        const rankScore = total <= 1 ? 100 : ((total - rankPosition) / (total - 1)) * 100;
+        const oprScore = normalize(team.opr, minOpr, maxOpr);
+        const defenseScore = normalize(maxDpr - team.dpr, 0, maxDpr - minDpr);
+        const winRateScore = team.winRate * 100;
+        const ccwmScore = normalize(team.ccwm, minCcwm, maxCcwm);
+        const playoffWinRate = team.playoff.played > 0
+          ? ((team.playoff.wins + team.playoff.ties * 0.5) / team.playoff.played) * 100
+          : 0;
+        const playoffMargin = team.playoff.played > 0
+          ? (team.playoff.pointsFor - team.playoff.pointsAgainst) / team.playoff.played
+          : 0;
+        const playoffMarginScore = normalize(playoffMargin, minPlayoffMargin, maxPlayoffMargin);
+        const playoffScore = team.playoff.played > 0
+          ? (playoffWinRate * 0.7) + (playoffMarginScore * 0.3)
+          : 15;
+        const compositeScore = clamp(
+          (oprScore * 0.40) + (winRateScore * 0.20) + (rankScore * 0.10) + (ccwmScore * 0.10) + (playoffScore * 0.20),
+          0,
+          100
+        );
+        const metrics = {
+          oprScore,
+          defenseScore,
+          winRateScore,
+          rankScore,
+          ccwmScore,
+          playoffScore,
+          playoffWinRate,
+          playoffMarginScore,
+          floorScore: (defenseScore * 0.45) + (winRateScore * 0.35) + (rankScore * 0.20),
+          executionGap: (rankScore + winRateScore) / 2 - oprScore
+        };
+
+        return {
+          ...team,
+          rank: index + 1,
+          displayRank: rankPosition,
+          compositeScore,
+          metrics,
+          confidence: buildConfidenceData(team, metrics),
+          playStyle: getPlayStyle(metrics),
+          insights: buildTeamInsights(metrics),
+          tier: getTierByPercentile(percentile)
+        };
+      }).sort((a, b) => b.compositeScore - a.compositeScore)
+        .map((team, sortedIndex, sortedTeams) => {
+          const sortedPercentile = sortedTeams.length <= 1 ? 100 : ((sortedTeams.length - sortedIndex - 1) / (sortedTeams.length - 1)) * 100;
+          return {
+            ...team,
+            rank: sortedIndex + 1,
+            tier: getTierByPercentile(sortedPercentile)
+          };
+        });
+    }
+
+    function calculateWinChance(redAlliance, blueAlliance, powerMap, oprMap) {
+      const getValue = (team) => {
+        const teamKey = normalizeTeamKey(team);
+        return Number(powerMap[teamKey]) || Number(oprMap[teamKey]) || 0;
+      };
+
+      const redTotal = redAlliance.reduce((sum, team) => sum + getValue(team), 0);
+      const blueTotal = blueAlliance.reduce((sum, team) => sum + getValue(team), 0);
+      const combined = redTotal + blueTotal;
+
+      if (combined <= 0) {
+        return {
+          redTotal,
+          blueTotal,
+          redChance: 0.5,
+          blueChance: 0.5
+        };
+      }
+
+      return {
+        redTotal,
+        blueTotal,
+        redChance: redTotal / combined,
+        blueChance: blueTotal / combined
+      };
+    }
+
+    function formatRecord(ranking) {
+      if (!ranking || !ranking.record) {
+        return tr("unknownRecord");
+      }
+
+      const wins = ranking.record.wins || 0;
+      const losses = ranking.record.losses || 0;
+      const ties = ranking.record.ties || 0;
+      return `${wins}-${losses}-${ties}`;
+    }
+
+    function formatPlayoffRecord(playoff) {
+      if (!playoff || !playoff.played) {
+        return "0-0-0";
+      }
+      return `${playoff.wins}-${playoff.losses}-${playoff.ties}`;
+    }
+
+    async function runInBatches(items, batchSize, worker) {
+      const results = [];
+
+      for (let index = 0; index < items.length; index += batchSize) {
+        const batch = items.slice(index, index + batchSize);
+        const batchResults = await Promise.all(batch.map((item) => worker(item)));
+        results.push(...batchResults);
+      }
+
+      return results;
+    }
+
+    async function requestTbaSafe(path) {
+      try {
+        return await requestTba(path);
+      } catch (error) {
+        if (error.message === "INVALID_API_KEY") {
+          throw error;
+        }
+        return null;
+      }
+    }
+
+    async function fetchEventBundleSafe(eventKey) {
+      const [oprData, rankingsData, matchesData] = await Promise.all([
+        requestTbaSafe(`/event/${eventKey}/oprs`),
+        requestTbaSafe(`/event/${eventKey}/rankings`),
+        requestTbaSafe(`/event/${eventKey}/matches/simple`)
+      ]);
+
+      if (!oprData || !rankingsData || !matchesData) {
+        return null;
+      }
+
+      return {
+        oprData,
+        rankingsData,
+        matchesData
+      };
+    }
+
+    function aggregateYearRankings(eventTeamLists) {
+      const yearlyMap = new Map();
+
+      eventTeamLists.forEach((teamList) => {
+        teamList.forEach((team) => {
+          if (!yearlyMap.has(team.teamKey)) {
+            yearlyMap.set(team.teamKey, {
+              teamKey: team.teamKey,
+              teamNumber: team.teamNumber,
+              scores: [],
+              confidences: []
+            });
+          }
+
+          const current = yearlyMap.get(team.teamKey);
+          current.scores.push(team.compositeScore);
+          current.confidences.push(team.confidence.score);
+        });
+      });
+
+      return Array.from(yearlyMap.values())
+        .map((team) => {
+          const sortedScores = [...team.scores].sort((a, b) => b - a);
+          const topScores = sortedScores.slice(0, 3);
+          const averageScore = team.scores.reduce((sum, value) => sum + value, 0) / team.scores.length;
+          const topAverage = topScores.reduce((sum, value) => sum + value, 0) / topScores.length;
+          const bestScore = sortedScores[0];
+          const eventsPlayed = team.scores.length;
+          const confidence = team.confidences.reduce((sum, value) => sum + value, 0) / team.confidences.length;
+          const yearScore = clamp(
+            (topAverage * 0.55) + (averageScore * 0.30) + (bestScore * 0.10) + (Math.min(eventsPlayed, 8) * 0.75),
+            0,
+            100
+          );
+
+          return {
+            teamKey: team.teamKey,
+            teamNumber: team.teamNumber,
+            yearScore,
+            averageScore,
+            bestScore,
+            eventsPlayed,
+            confidence
+          };
+        })
+        .sort((a, b) => b.yearScore - a.yearScore)
+        .map((team, index) => ({
+          ...team,
+          rank: index + 1
+        }));
+    }
+
+    function showStatus(type, message) {
+      const palette = {
+        success: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
+        error: "border-rose-400/30 bg-rose-400/10 text-rose-200",
+        loading: "border-cyan-400/30 bg-cyan-400/10 text-cyan-100"
+      };
+
+      elements.statusBanner.className = `mt-4 rounded-2xl border px-4 py-3 text-sm ${palette[type]}`;
+      elements.statusBanner.textContent = message;
+      elements.statusBanner.classList.remove("hidden");
+    }
+
+    function renderEventOptions() {
+      if (!state.events.length) {
+        elements.eventSelect.innerHTML = `<option value="">${tr("eventListHint")}</option>`;
+        return;
+      }
+
+      elements.eventSelect.innerHTML = `
+        <option value="">${tr("eventSelect")}</option>
+        ${state.events.map((eventItem) => `<option value="${eventItem.key}">${eventItem.displayName}</option>`).join("")}
+      `;
+
+      if (state.selectedEventKey) {
+        elements.eventSelect.value = state.selectedEventKey;
+      }
+    }
+
+    function renderYearOptions() {
+      const currentYear = new Date().getFullYear();
+      const years = [];
+      for (let year = currentYear; year >= 1992; year -= 1) {
+        years.push(year);
+      }
+
+      elements.yearInput.innerHTML = `
+        <option value="all">${tr("allYears")}</option>
+        ${years.map((year) => `<option value="${year}">${year}</option>`).join("")}
+      `;
+
+      if (!elements.yearInput.value) {
+        elements.yearInput.value = "all";
+      }
+    }
+
+    function renderSelectedEventPill() {
+      if (!state.selectedEventName) {
+        elements.selectedEventPill.classList.add("hidden");
+        elements.selectedEventPill.textContent = "";
+        return;
+      }
+
+      elements.selectedEventPill.classList.remove("hidden");
+      elements.selectedEventPill.textContent = tr("selectedEvent", { name: state.selectedEventName });
+    }
+
+    function matchesTeamSearch(team) {
+      const query = state.teamSearch.trim().toLowerCase();
+      if (!query) {
+        return true;
+      }
+
+      return team.teamKey.toLowerCase().includes(query) || team.teamNumber.toLowerCase().includes(query);
+    }
+
+    function getVisibleRankings() {
+      return state.rankings.filter(matchesTeamSearch);
+    }
+
+    function getAnalysisSectionClass() {
+      return state.analysisCollapsed ? "hidden" : "";
+    }
+
+    function getVisibleYearlyRankings() {
+      return state.yearlyRankings.filter((team) => {
+        const query = state.teamSearch.trim().toLowerCase();
+        if (!query) {
+          return true;
+        }
+        return team.teamKey.toLowerCase().includes(query) || team.teamNumber.toLowerCase().includes(query);
+      });
+    }
+
+    function renderYearlyRankings() {
+      const visibleYearly = getVisibleYearlyRankings();
+
+      if (!state.yearlyRankings.length) {
+        elements.yearlyBody.innerHTML = `
+          <tr>
+            <td colspan="6" class="px-4 py-10 text-center text-slate-500">${tr("yearlyEmpty")}</td>
+          </tr>
+        `;
+        elements.yearlyCards.innerHTML = `
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/40 px-4 py-10 text-center text-sm text-slate-500">
+            ${tr("yearlyEmpty")}
+          </div>
+        `;
+        elements.yearlySummary.textContent = tr("yearlyEmpty");
+        return;
+      }
+
+      if (!visibleYearly.length) {
+        elements.yearlyBody.innerHTML = `
+          <tr>
+            <td colspan="6" class="px-4 py-10 text-center text-slate-500">${tr("noSearchResults")}</td>
+          </tr>
+        `;
+        elements.yearlyCards.innerHTML = `
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/40 px-4 py-10 text-center text-sm text-slate-500">
+            ${tr("noSearchResults")}
+          </div>
+        `;
+        return;
+      }
+
+      elements.yearlyBody.innerHTML = visibleYearly.map((team) => {
+        const confidenceTone = team.confidence >= 75
+          ? "text-emerald-200"
+          : team.confidence >= 50
+            ? "text-amber-200"
+            : "text-rose-200";
+
+        return `
+          <tr class="hover:bg-white/[0.03]">
+            <td class="px-4 py-3 font-medium text-white">${team.rank}</td>
+            <td class="px-4 py-3 font-semibold text-cyan-200">${team.teamKey}</td>
+            <td class="px-4 py-3">
+              <div class="font-semibold text-white">${team.yearScore.toFixed(1)}</div>
+              <div class="text-xs text-slate-500">Avg ${team.averageScore.toFixed(1)}</div>
+            </td>
+            <td class="px-4 py-3 text-slate-300">${team.eventsPlayed}</td>
+            <td class="px-4 py-3 text-slate-300">${team.bestScore.toFixed(1)}</td>
+            <td class="px-4 py-3 ${confidenceTone}">${team.confidence.toFixed(0)}%</td>
+          </tr>
+        `;
+      }).join("");
+
+      elements.yearlyCards.innerHTML = visibleYearly.map((team) => {
+        const confidenceTone = team.confidence >= 75
+          ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+          : team.confidence >= 50
+            ? "border-amber-400/20 bg-amber-400/10 text-amber-200"
+            : "border-rose-400/20 bg-rose-400/10 text-rose-200";
+
+        return `
+          <article class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="text-lg font-semibold text-cyan-200">${team.teamKey}</div>
+                <div class="mt-1 text-sm text-slate-400">${tr("rank")} #${team.rank}</div>
+              </div>
+              <span class="rounded-full border px-2.5 py-1 text-xs font-semibold ${confidenceTone}">${team.confidence.toFixed(0)}%</span>
+            </div>
+            <div class="mt-4 grid grid-cols-3 gap-3 text-sm">
+              <div class="rounded-xl bg-slate-900/80 p-3">
+                <div class="text-xs uppercase tracking-[0.18em] text-slate-500">${tr("yearlyScore")}</div>
+                <div class="mt-1 font-semibold text-white">${team.yearScore.toFixed(1)}</div>
+              </div>
+              <div class="rounded-xl bg-slate-900/80 p-3">
+                <div class="text-xs uppercase tracking-[0.18em] text-slate-500">${tr("yearlyEvents")}</div>
+                <div class="mt-1 font-semibold text-white">${team.eventsPlayed}</div>
+              </div>
+              <div class="rounded-xl bg-slate-900/80 p-3">
+                <div class="text-xs uppercase tracking-[0.18em] text-slate-500">${tr("yearlyBest")}</div>
+                <div class="mt-1 font-semibold text-white">${team.bestScore.toFixed(1)}</div>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderRankings() {
+      const visibleRankings = getVisibleRankings();
+
+      if (!state.rankings.length) {
+        elements.rankingsBody.innerHTML = `
+          <tr>
+            <td colspan="7" class="px-4 py-10 text-center text-slate-500">${tr("emptyRankings")}</td>
+          </tr>
+        `;
+        elements.rankingsCards.innerHTML = `
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/40 px-4 py-10 text-center text-sm text-slate-500">
+            ${tr("emptyRankings")}
+          </div>
+        `;
+        elements.eventSummary.textContent = tr("noDataLoaded");
+        return;
+      }
+
+      if (!visibleRankings.length) {
+        elements.rankingsBody.innerHTML = `
+          <tr>
+            <td colspan="7" class="px-4 py-10 text-center text-slate-500">${tr("noSearchResults")}</td>
+          </tr>
+        `;
+        elements.rankingsCards.innerHTML = `
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/40 px-4 py-10 text-center text-sm text-slate-500">
+            ${tr("noSearchResults")}
+          </div>
+        `;
+        elements.eventSummary.textContent = tr("loadedSummary", {
+          eventName: state.selectedEventName || state.selectedEventKey,
+          count: state.rankings.length
+        });
+        return;
+      }
+
+      const homeTeamKey = normalizeTeamKey(state.homeTeam);
+      const homeTeam = state.rankings.find((team) => team.teamKey === homeTeamKey) || null;
+      const homeScore = homeTeam ? homeTeam.compositeScore : 0;
+
+      const tableRows = visibleRankings.map((team) => {
+        const isHomeTeam = homeTeamKey && team.teamKey === homeTeamKey;
+        const strategicFlags = getStrategicFlags(team.metrics);
+        const comparisonText = compareToHomeTeam(team.compositeScore, homeScore);
+        const confidenceTone = team.confidence.score >= 75
+          ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+          : team.confidence.score >= 50
+            ? "border-amber-400/20 bg-amber-400/10 text-amber-200"
+            : "border-rose-400/20 bg-rose-400/10 text-rose-200";
+        return `
+          <tr class="${isHomeTeam ? "bg-goldGlow/10" : "hover:bg-white/[0.03]"}">
+            <td class="px-4 py-3 font-medium ${isHomeTeam ? "text-goldGlow" : "text-white"}">${team.rank}</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <span class="font-semibold ${isHomeTeam ? "text-goldGlow" : "text-cyan-200"}">${team.teamKey}</span>
+                ${isHomeTeam ? `<span class="rounded-full border border-goldGlow/30 bg-goldGlow/15 px-2 py-0.5 text-xs font-semibold text-goldGlow">${tr("homeTeamBadge")}</span>` : ""}
+              </div>
+            </td>
+            <td class="px-4 py-3">
+              <div class="font-semibold text-white">${team.compositeScore.toFixed(1)}</div>
+              <div class="text-xs text-slate-500">Rank ${team.displayRank}</div>
+            </td>
+            <td class="px-4 py-3 text-slate-200">${team.opr.toFixed(2)}</td>
+            <td class="px-4 py-3">
+              <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${team.tier.colorClass}">
+                ${tr(team.tier.key)}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-slate-300">
+              <div>${tr("record")}: ${formatRecord(team.ranking)}</div>
+              <div class="text-xs text-slate-500">${tr("playoff")}: ${formatPlayoffRecord(team.playoff)}</div>
+            </td>
+            <td class="px-4 py-3 ${getAnalysisSectionClass()}">
+              <div class="space-y-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">${tr("confidenceLabel")}</span>
+                  <span class="rounded-full border px-2.5 py-1 text-xs font-semibold ${confidenceTone}">${team.confidence.score.toFixed(0)}% / ${team.confidence.label}</span>
+                  ${team.confidence.reasons.map((item) => `<span class="rounded-full border border-slate-400/15 bg-slate-400/10 px-2.5 py-1 text-xs text-slate-300">${item}</span>`).join("")}
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">${tr("roleLabel")}</span>
+                  <span class="rounded-full border border-slate-400/20 bg-slate-400/10 px-2.5 py-1 text-xs text-slate-100">${team.playStyle}</span>
+                  <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300">${tr("archetypeLabel")}</span>
+                  <span class="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-xs text-cyan-100">${getArchetype(team.metrics)}</span>
+                  ${comparisonText && !isHomeTeam ? `<span class="rounded-full border border-goldGlow/20 bg-goldGlow/10 px-2.5 py-1 text-xs text-goldGlow">${tr("compareLabel")}: ${comparisonText}</span>` : ""}
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300">${tr("strengthsLabel")}</span>
+                  ${team.insights.strengths.map((item) => `<span class="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-200">${item}</span>`).join("")}
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-300">${tr("weaknessesLabel")}</span>
+                  ${team.insights.weaknesses.map((item) => `<span class="rounded-full border border-rose-400/20 bg-rose-400/10 px-2.5 py-1 text-xs text-rose-200">${item}</span>`).join("")}
+                </div>
+                ${strategicFlags.length ? `
+                  <div class="flex flex-wrap gap-2">
+                    ${strategicFlags.map((item) => `<span class="rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-xs text-amber-200">${item}</span>`).join("")}
+                  </div>
+                ` : ""}
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      const mobileCards = visibleRankings.map((team) => {
+        const isHomeTeam = homeTeamKey && team.teamKey === homeTeamKey;
+        const strategicFlags = getStrategicFlags(team.metrics);
+        const comparisonText = compareToHomeTeam(team.compositeScore, homeScore);
+        const confidenceTone = team.confidence.score >= 75
+          ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+          : team.confidence.score >= 50
+            ? "border-amber-400/20 bg-amber-400/10 text-amber-200"
+            : "border-rose-400/20 bg-rose-400/10 text-rose-200";
+
+        return `
+          <article class="rounded-2xl border ${isHomeTeam ? "border-goldGlow/40 bg-goldGlow/10" : "border-slate-800 bg-slate-950/40"} p-4 shadow-sm">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="text-lg font-semibold ${isHomeTeam ? "text-goldGlow" : "text-cyan-200"}">${team.teamKey}</span>
+                  ${isHomeTeam ? `<span class="rounded-full border border-goldGlow/30 bg-goldGlow/15 px-2 py-0.5 text-xs font-semibold text-goldGlow">${tr("homeTeamBadge")}</span>` : ""}
+                </div>
+                <div class="mt-1 text-sm text-slate-400">${tr("rank")} #${team.rank} / Official ${team.displayRank}</div>
+              </div>
+              <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${team.tier.colorClass}">
+                ${tr(team.tier.key)}
+              </span>
+            </div>
+
+            <div class="mt-4 grid grid-cols-3 gap-3 text-sm">
+              <div class="rounded-xl bg-slate-900/80 p-3">
+                <div class="text-xs uppercase tracking-[0.18em] text-slate-500">${tr("score")}</div>
+                <div class="mt-1 font-semibold text-white">${team.compositeScore.toFixed(1)}</div>
+              </div>
+              <div class="rounded-xl bg-slate-900/80 p-3">
+                <div class="text-xs uppercase tracking-[0.18em] text-slate-500">${tr("opr")}</div>
+                <div class="mt-1 font-semibold text-white">${team.opr.toFixed(2)}</div>
+              </div>
+              <div class="rounded-xl bg-slate-900/80 p-3">
+                <div class="text-xs uppercase tracking-[0.18em] text-slate-500">${tr("record")}</div>
+                <div class="mt-1 font-semibold text-white">${formatRecord(team.ranking)}</div>
+                <div class="mt-1 text-xs text-slate-500">${tr("playoff")}: ${formatPlayoffRecord(team.playoff)}</div>
+              </div>
+            </div>
+
+            <div class="mt-4 ${getAnalysisSectionClass()}">
+              <div class="flex flex-wrap items-center gap-2">
+              <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">${tr("confidenceLabel")}</span>
+              <span class="rounded-full border px-2.5 py-1 text-xs font-semibold ${confidenceTone}">${team.confidence.score.toFixed(0)}% / ${team.confidence.label}</span>
+              ${team.confidence.reasons.map((item) => `<span class="rounded-full border border-slate-400/15 bg-slate-400/10 px-2.5 py-1 text-xs text-slate-300">${item}</span>`).join("")}
+              </div>
+
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+              <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">${tr("roleLabel")}</span>
+              <span class="rounded-full border border-slate-400/20 bg-slate-400/10 px-2.5 py-1 text-xs text-slate-100">${team.playStyle}</span>
+              <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300">${tr("archetypeLabel")}</span>
+              <span class="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-xs text-cyan-100">${getArchetype(team.metrics)}</span>
+              ${comparisonText && !isHomeTeam ? `<span class="rounded-full border border-goldGlow/20 bg-goldGlow/10 px-2.5 py-1 text-xs text-goldGlow">${tr("compareLabel")}: ${comparisonText}</span>` : ""}
+              </div>
+
+              <div class="mt-4">
+              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300">${tr("strengthsLabel")}</div>
+              <div class="mt-2 flex flex-wrap gap-2">
+                ${team.insights.strengths.map((item) => `<span class="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-200">${item}</span>`).join("")}
+              </div>
+              </div>
+
+              <div class="mt-4">
+              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-300">${tr("weaknessesLabel")}</div>
+              <div class="mt-2 flex flex-wrap gap-2">
+                ${team.insights.weaknesses.map((item) => `<span class="rounded-full border border-rose-400/20 bg-rose-400/10 px-2.5 py-1 text-xs text-rose-200">${item}</span>`).join("")}
+              </div>
+              </div>
+
+              ${strategicFlags.length ? `
+                <div class="mt-4 flex flex-wrap gap-2">
+                  ${strategicFlags.map((item) => `<span class="rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-xs text-amber-200">${item}</span>`).join("")}
+                </div>
+              ` : ""}
+            </div>
+          </article>
+        `;
+      }).join("");
+
+      elements.rankingsBody.innerHTML = tableRows;
+      elements.rankingsCards.innerHTML = mobileCards;
+
+      elements.eventSummary.textContent = tr("loadedSummary", {
+        eventName: state.selectedEventName || state.selectedEventKey,
+        count: state.rankings.length
+      });
+    }
+
+    function updatePredictorView() {
+      const redAlliance = elements.teamInputs.filter((input) => input.dataset.alliance === "red").map((input) => input.value);
+      const blueAlliance = elements.teamInputs.filter((input) => input.dataset.alliance === "blue").map((input) => input.value);
+      const result = calculateWinChance(redAlliance, blueAlliance, state.powerMap, state.oprMap);
+      const redPercent = (result.redChance * 100).toFixed(1);
+      const bluePercent = (result.blueChance * 100).toFixed(1);
+
+      elements.redOprTotal.textContent = `Power: ${result.redTotal.toFixed(2)}`;
+      elements.blueOprTotal.textContent = `Power: ${result.blueTotal.toFixed(2)}`;
+      elements.redWinValue.textContent = `${redPercent}%`;
+      elements.blueWinValue.textContent = `${bluePercent}%`;
+      elements.redBar.style.width = `${redPercent}%`;
+      elements.blueBar.style.width = `${bluePercent}%`;
+      elements.predictorNotes.textContent = state.rankings.length ? tr("predictorReady") : tr("predictorWaiting");
+    }
+
+    function applyTabState() {
+      elements.tabButtons.forEach((button) => {
+        const isActive = button.dataset.tab === state.activeTab;
+        button.className = isActive
+          ? "tab-button rounded-full bg-cyanGlow px-4 py-2 text-sm font-semibold text-slate-950 transition"
+          : "tab-button rounded-full bg-white/5 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/10";
+      });
+
+      elements.tabPanels.forEach((panel) => {
+        panel.classList.toggle("hidden", panel.dataset.panel !== state.activeTab);
+      });
+    }
+
+    function applyTranslations() {
+      elements.html.lang = state.language === "zh" ? "zh-Hant" : "en";
+      elements.languageToggle.textContent = tr("languageToggle");
+      elements.pageTitle.textContent = tr("pageTitle");
+      elements.pageSubtitle.textContent = tr("pageSubtitle");
+      elements.yearLabel.textContent = tr("year");
+      renderYearOptions();
+      elements.eventSelectLabel.textContent = tr("eventSelect");
+      elements.loadEventsButton.textContent = tr("loadEvents");
+      elements.fetchButton.textContent = tr("fetchData");
+      elements.loadYearlyButton.textContent = tr("loadYearly");
+      elements.homeTeamLabel.textContent = tr("homeTeam");
+      elements.homeTeamInput.placeholder = tr("homeTeamPlaceholder");
+      elements.teamSearchLabel.textContent = tr("teamSearch");
+      elements.teamSearchInput.placeholder = tr("teamSearchPlaceholder");
+      elements.toggleAnalysisButton.textContent = state.analysisCollapsed ? tr("expandAnalysis") : tr("collapseAnalysis");
+      elements.tabButtons.find((button) => button.dataset.tab === "rankings").textContent = tr("rankingsTab");
+      elements.tabButtons.find((button) => button.dataset.tab === "yearly").textContent = tr("yearlyTab");
+      elements.tabButtons.find((button) => button.dataset.tab === "predictor").textContent = tr("predictorTab");
+      elements.rankingsHeading.textContent = tr("rankingsHeading");
+      elements.rankingsDescription.textContent = tr("rankingsDescription");
+      elements.yearlyHeading.textContent = tr("yearlyHeading");
+      elements.yearlyDescription.textContent = tr("yearlyDescription");
+      elements.predictorHeading.textContent = tr("predictorHeading");
+      elements.predictorDescription.textContent = tr("predictorDescription");
+      elements.redAllianceTitle.textContent = tr("redAlliance");
+      elements.blueAllianceTitle.textContent = tr("blueAlliance");
+      elements.predictButton.textContent = tr("predict");
+      elements.redWinLabel.textContent = tr("redSide");
+      elements.blueWinLabel.textContent = tr("blueSide");
+      elements.footerText.textContent = tr("footer");
+      elements.colRank.textContent = tr("rank");
+      elements.colTeam.textContent = tr("team");
+      elements.colScore.textContent = tr("score");
+      elements.colOpr.textContent = tr("opr");
+      elements.colTier.textContent = tr("tier");
+      elements.colRecord.textContent = tr("record");
+      elements.colAnalysis.textContent = tr("analysis");
+      elements.yearColRank.textContent = tr("rank");
+      elements.yearColTeam.textContent = tr("team");
+      elements.yearColScore.textContent = tr("yearlyScore");
+      elements.yearColEvents.textContent = tr("yearlyEvents");
+      elements.yearColBest.textContent = tr("yearlyBest");
+      elements.yearColConfidence.textContent = tr("yearlyConfidence");
+      if (!state.yearlyRankings.length) {
+        elements.yearlySummary.textContent = tr("yearlyEmpty");
+      } else {
+        const selectedYear = elements.yearInput.value === "all" ? tr("allYears") : elements.yearInput.value;
+        elements.yearlySummary.textContent = tr("yearlySummary", {
+          year: selectedYear,
+          count: state.yearlyRankings.length
+        });
+      }
+      renderEventOptions();
+      renderSelectedEventPill();
+      renderRankings();
+      renderYearlyRankings();
+      updatePredictorView();
+    }
+
+    async function loadEvents() {
+      const year = elements.yearInput.value.trim();
+
+      if (!year) {
+        showStatus("error", tr("missingYear"));
+        return;
+      }
+
+      showStatus("loading", tr("loadingEvents"));
+      elements.loadEventsButton.disabled = true;
+      elements.loadEventsButton.classList.add("opacity-70", "cursor-not-allowed");
+
+      try {
+        const yearsToLoad = year === "all"
+          ? Array.from({ length: new Date().getFullYear() - 1992 + 1 }, (_, index) => new Date().getFullYear() - index)
+          : [Number(year)];
+
+        let skippedYears = 0;
+        const eventResponses = await runInBatches(yearsToLoad, 4, async (seasonYear) => {
+          const result = await requestTbaSafe(`/events/${seasonYear}/simple`);
+          if (!result) {
+            skippedYears += 1;
+            return [];
+          }
+          return result;
+        });
+
+        const events = eventResponses.flat();
+        state.events = (events || [])
+          .sort((a, b) => {
+            const startA = a.start_date || "";
+            const startB = b.start_date || "";
+            return startA.localeCompare(startB) || (a.name || "").localeCompare(b.name || "");
+          })
+          .map((eventItem) => ({
+            key: eventItem.key,
+            name: eventItem.name || eventItem.key,
+            displayName: `${eventItem.start_date || "---- -- --"} | ${eventItem.name || eventItem.key} (${eventItem.key})`
+          }));
+
+        state.selectedEventKey = "";
+        state.selectedEventName = "";
+        renderEventOptions();
+        renderSelectedEventPill();
+
+        if (!state.events.length) {
+          showStatus("error", tr("noEventsFound"));
+          return;
+        }
+
+        showStatus(
+          "success",
+          tr(skippedYears ? "eventsLoadedPartial" : "eventsLoaded", {
+            year: year === "all" ? tr("allYears") : year,
+            count: state.events.length
+          })
+        );
+      } catch (error) {
+        const key = error.message === "INVALID_API_KEY" ? "invalidApiKey" : "fetchFailed";
+        showStatus("error", tr(key));
+      } finally {
+        elements.loadEventsButton.disabled = false;
+        elements.loadEventsButton.classList.remove("opacity-70", "cursor-not-allowed");
+      }
+    }
+
+    async function loadEventData() {
+      const eventKey = elements.eventSelect.value;
+      const selectedEvent = state.events.find((eventItem) => eventItem.key === eventKey);
+
+      if (!eventKey) {
+        showStatus("error", tr("missingEvent"));
+        return;
+      }
+
+      showStatus("loading", tr("loading"));
+      elements.fetchButton.disabled = true;
+      elements.fetchButton.classList.add("opacity-70", "cursor-not-allowed");
+
+      try {
+        const [oprData, rankingsData, matchesData] = await Promise.all([
+          requestTba(`/event/${eventKey}/oprs`),
+          requestTba(`/event/${eventKey}/rankings`),
+          requestTba(`/event/${eventKey}/matches/simple`)
+        ]);
+
+        state.selectedEventKey = eventKey;
+        state.selectedEventName = selectedEvent ? selectedEvent.name : eventKey;
+        state.oprMap = oprData.oprs || {};
+        state.powerMap = {};
+        const playoffMap = buildPlayoffStats(matchesData || []);
+        state.rankings = buildRankedTeams(state.oprMap, rankingsData.rankings || [], oprData, playoffMap);
+        state.rankings.forEach((team) => {
+          state.powerMap[team.teamKey] = team.compositeScore;
+        });
+        renderSelectedEventPill();
+        renderRankings();
+        updatePredictorView();
+        showStatus("success", `${tr("statusSuccess")} ${tr("loadedSummary", { eventName: state.selectedEventName, count: state.rankings.length })}`);
+      } catch (error) {
+        const key = error.message === "INVALID_API_KEY"
+          ? "invalidApiKey"
+          : error.message === "EVENT_NOT_FOUND"
+            ? "eventNotFound"
+            : "fetchFailed";
+        showStatus("error", tr(key));
+      } finally {
+        elements.fetchButton.disabled = false;
+        elements.fetchButton.classList.remove("opacity-70", "cursor-not-allowed");
+      }
+    }
+
+    async function loadYearlyRankings() {
+      const year = elements.yearInput.value.trim();
+
+      if (!year || year === "all") {
+        showStatus("error", tr("yearlyNeedSingleYear"));
+        return;
+      }
+
+      showStatus("loading", tr("loading"));
+      elements.loadYearlyButton.disabled = true;
+      elements.loadYearlyButton.classList.add("opacity-70", "cursor-not-allowed");
+
+      try {
+        const events = await requestTba(`/events/${year}/simple`);
+        const validEvents = (events || []).filter((eventItem) => eventItem.key);
+
+        let skippedEvents = 0;
+        const eventTeamLists = await runInBatches(validEvents, 3, async (eventItem) => {
+          const bundle = await fetchEventBundleSafe(eventItem.key);
+          if (!bundle) {
+            skippedEvents += 1;
+            return [];
+          }
+
+          const playoffMap = buildPlayoffStats(bundle.matchesData || []);
+          return buildRankedTeams(bundle.oprData.oprs || {}, bundle.rankingsData.rankings || [], bundle.oprData, playoffMap);
+        });
+
+        state.yearlyRankings = aggregateYearRankings(eventTeamLists);
+        renderYearlyRankings();
+        elements.yearlySummary.textContent = tr(skippedEvents ? "yearlySummaryPartial" : "yearlySummary", {
+          year,
+          count: state.yearlyRankings.length
+        });
+        showStatus("success", tr(skippedEvents ? "yearlySummaryPartial" : "yearlySummary", {
+          year,
+          count: state.yearlyRankings.length
+        }));
+      } catch (error) {
+        const key = error.message === "INVALID_API_KEY" ? "invalidApiKey" : "fetchFailed";
+        showStatus("error", tr(key));
+      } finally {
+        elements.loadYearlyButton.disabled = false;
+        elements.loadYearlyButton.classList.remove("opacity-70", "cursor-not-allowed");
+      }
+    }
+
+    function bindEvents() {
+      elements.homeTeamInput.value = state.homeTeam;
+      renderYearOptions();
+      elements.yearInput.value = "all";
+
+      elements.languageToggle.addEventListener("click", () => {
+        state.language = state.language === "zh" ? "en" : "zh";
+        localStorage.setItem(STORAGE_KEYS.language, state.language);
+        applyTranslations();
+      });
+
+      elements.homeTeamInput.addEventListener("input", (event) => {
+        state.homeTeam = event.target.value.trim();
+        localStorage.setItem(STORAGE_KEYS.homeTeam, state.homeTeam);
+        renderRankings();
+      });
+
+      elements.teamSearchInput.addEventListener("input", (event) => {
+        state.teamSearch = event.target.value.trim();
+        renderRankings();
+        renderYearlyRankings();
+      });
+
+      elements.toggleAnalysisButton.addEventListener("click", () => {
+        state.analysisCollapsed = !state.analysisCollapsed;
+        elements.toggleAnalysisButton.textContent = state.analysisCollapsed ? tr("expandAnalysis") : tr("collapseAnalysis");
+        renderRankings();
+      });
+
+      elements.eventSelect.addEventListener("change", (event) => {
+        const selectedEvent = state.events.find((eventItem) => eventItem.key === event.target.value);
+        state.selectedEventKey = event.target.value;
+        state.selectedEventName = selectedEvent ? selectedEvent.name : "";
+        renderSelectedEventPill();
+      });
+
+      elements.loadEventsButton.addEventListener("click", loadEvents);
+      elements.fetchButton.addEventListener("click", loadEventData);
+      elements.loadYearlyButton.addEventListener("click", loadYearlyRankings);
+      elements.predictButton.addEventListener("click", updatePredictorView);
+
+      elements.tabButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          state.activeTab = button.dataset.tab;
+          applyTabState();
+        });
+      });
+
+      elements.teamInputs.forEach((input) => {
+        input.addEventListener("input", updatePredictorView);
+      });
+    }
+
+    bindEvents();
+    applyTabState();
+    applyTranslations();
+  </script>
+</body>
+</html>
